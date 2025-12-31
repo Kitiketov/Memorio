@@ -32,3 +32,16 @@ def webapp_keyboard(url: str) -> InlineKeyboardMarkup:
             ]
         ]
     )
+
+
+def url_keyboard(url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Открыть карту",
+                    url=url,
+                )
+            ]
+        ]
+    )

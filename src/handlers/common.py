@@ -4,8 +4,8 @@ from aiogram.types import Message
 
 from src.auth import create_token
 from src.config import settings
-from src.keyboards import webapp_keyboard
-from src.texts import MAP_LOCAL_TEXT, MAP_OPEN_TEXT, START_MESSAGE, WEBAPP_URL_MISSING
+from src.keyboards import url_keyboard, webapp_keyboard
+from src.texts import MAP_OPEN_TEXT, MAP_URL_TEXT, START_MESSAGE, WEBAPP_URL_MISSING
 
 
 router = Router(name=__name__)
@@ -38,6 +38,6 @@ async def open_map(message: Message) -> None:
         return
 
     await message.answer(
-        MAP_LOCAL_TEXT.format(url=url),
-        disable_web_page_preview=True,
+        MAP_URL_TEXT,
+        reply_markup=url_keyboard(url),
     )
