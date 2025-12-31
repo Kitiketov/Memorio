@@ -35,6 +35,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
             ${{ steps.image.outputs.image_name }}:latest
@@ -75,14 +76,31 @@ jobs:
             if ! command -v docker >/dev/null 2>&1; then
               curl -fsSL https://get.docker.com | sudo sh
             fi
-            if ! docker compose version >/dev/null 2>&1; then
-              sudo apt-get update
-              sudo apt-get install -y docker-compose-plugin
-            fi
-
             DOCKER="docker"
             if ! docker ps >/dev/null 2>&1; then
               DOCKER="sudo docker"
+            fi
+
+            if $DOCKER compose version >/dev/null 2>&1; then
+              COMPOSE="$DOCKER compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              COMPOSE="docker-compose"
+            else
+              ARCH="$(uname -m)"
+              if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+                ARCH="amd64"
+              elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+                ARCH="arm64"
+              else
+                ARCH="amd64"
+              fi
+              COMPOSE_VERSION="v2.27.0"
+              sudo mkdir -p /usr/local/lib/docker/cli-plugins
+              sudo curl -fsSL \
+                "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${ARCH}" \
+                -o /usr/local/lib/docker/cli-plugins/docker-compose
+              sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+              COMPOSE="$DOCKER compose"
             fi
 
             APP_DIR="/opt/memorio"
@@ -117,5 +135,5 @@ jobs:
             EOF
 
             $DOCKER login ghcr.io -u "$GHCR_USERNAME" -p "$GHCR_TOKEN"
-            $DOCKER compose pull app
-            $DOCKER compose up -d --remove-orphans
+            $COMPOSE pull app
+            $COMPOSE up -d --remove-orphans
