@@ -1,0 +1,28 @@
+services:
+  app:
+    image: ${IMAGE_NAME:-memorio}:latest
+    container_name: memorio-app
+    env_file: .env
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+  db:
+    image: postgres:17
+    container_name: memorio-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-memorio}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - memorio_db:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-memorio}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  memorio_db:
