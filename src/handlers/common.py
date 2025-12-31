@@ -38,5 +38,6 @@ async def open_map(message: Message) -> None:
         return
 
     await message.answer(
-        MAP_LOCAL_TEXT.format(url=url)
+        MAP_LOCAL_TEXT.format(url=url),
+        disable_web_page_preview=True,
     )

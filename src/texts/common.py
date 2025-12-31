@@ -5,7 +5,7 @@ WEBAPP_URL_MISSING = "URL веб приложения не настроен."
 MAP_OPEN_TEXT = "Открой карту с отмеченными кружками."
 MAP_LOCAL_TEXT = (
     "Локальная версия откроется во внешнем браузере. "
-    "Для WebApp нужен HTTPS.\n{url}"
+    "Для WebApp нужен HTTPS.\n<a href=\"{url}\">{url}</a>"
 )
 
 ASK_LOCATION_TEXT = "Где снят файл? Поделись геопозицией."

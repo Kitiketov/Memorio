@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m compileall -q src main.py
+
+  build:
+    runs-on: ubuntu-latest
+    needs: compile
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: appleboy/ssh-action@v1.0.3
+        env:
+          REPO_URL: ${{ secrets.REPO_URL }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          WEBAPP_URL: ${{ secrets.WEBAPP_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_TTL_SECONDS: ${{ secrets.JWT_TTL_SECONDS }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          envs: REPO_URL,BOT_TOKEN,WEBAPP_URL,JWT_SECRET,JWT_TTL_SECONDS,POSTGRES_DB,POSTGRES_USER,POSTGRES_PASSWORD,IMAGE_NAME,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -e
+            if ! command -v git >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y git
+            fi
+            if ! command -v docker >/dev/null 2>&1; then
+              curl -fsSL https://get.docker.com | sudo sh
+            fi
+            if ! docker compose version >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y docker-compose-plugin
+            fi
+
+            DOCKER="docker"
+            if ! docker ps >/dev/null 2>&1; then
+              DOCKER="sudo docker"
+            fi
+
+            APP_DIR="/opt/memorio"
+            REPO_URL="${REPO_URL:-https://github.com/${{ github.repository }}.git}"
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              sudo mkdir -p "$APP_DIR"
+              sudo chown "$USER:$USER" "$APP_DIR"
+              git clone "$REPO_URL" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+            git pull
+
+            POSTGRES_DB="${POSTGRES_DB:-memorio}"
+            POSTGRES_USER="${POSTGRES_USER:-postgres}"
+            POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
+            JWT_TTL_SECONDS="${JWT_TTL_SECONDS:-86400}"
+
+            cat > .env <<EOF
+            BOT_TOKEN=${BOT_TOKEN}
+            WEBAPP_URL=${WEBAPP_URL}
+            JWT_SECRET=${JWT_SECRET}
+            JWT_TTL_SECONDS=${JWT_TTL_SECONDS}
+
+            POSTGRES_DB=${POSTGRES_DB}
+            POSTGRES_USER=${POSTGRES_USER}
+            POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+            DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+
+            IMAGE_NAME=${IMAGE_NAME}
+            EOF
+
+            $DOCKER login ghcr.io -u "$GHCR_USERNAME" -p "$GHCR_TOKEN"
+            $DOCKER compose pull app
+            $DOCKER compose up -d --remove-orphans
