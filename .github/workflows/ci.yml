@@ -86,21 +86,8 @@ jobs:
             elif command -v docker-compose >/dev/null 2>&1; then
               COMPOSE="docker-compose"
             else
-              ARCH="$(uname -m)"
-              if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
-                ARCH="amd64"
-              elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-                ARCH="arm64"
-              else
-                ARCH="amd64"
-              fi
-              COMPOSE_VERSION="v2.27.0"
-              sudo mkdir -p /usr/local/lib/docker/cli-plugins
-              sudo curl -fsSL \
-                "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${ARCH}" \
-                -o /usr/local/lib/docker/cli-plugins/docker-compose
-              sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-              COMPOSE="$DOCKER compose"
+              echo "docker compose not found (expected docker compose or docker-compose in PATH)."
+              exit 1
             fi
 
             APP_DIR="/opt/memorio"
