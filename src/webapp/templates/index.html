@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Memorio Map</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Source+Sans+3:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <style>
+      :root {
+        --ink: #0f1d1b;
+        --muted: #51615d;
+        --accent: #e86f47;
+        --accent-2: #238f80;
+        --paper: #f6f1e8;
+        --glass: rgba(255, 255, 255, 0.82);
+        --shadow: 0 24px 50px rgba(15, 29, 27, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Source Sans 3", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at 15% 15%, #fff6e3, #f6f1e8 55%, #efe6d6);
+        min-height: 100vh;
+      }
+
+      #map {
+        position: fixed;
+        inset: 0;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .overlay::before {
+        content: "";
+        position: absolute;
+        width: 380px;
+        height: 380px;
+        right: -120px;
+        top: -120px;
+        background: radial-gradient(
+          circle,
+          rgba(232, 111, 71, 0.35),
+          rgba(232, 111, 71, 0)
+        );
+        filter: blur(0);
+      }
+
+      .card {
+        pointer-events: auto;
+        position: absolute;
+        top: 24px;
+        left: 24px;
+        display: grid;
+        gap: 10px;
+        padding: 18px 20px;
+        background: var(--glass);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+        animation: liftIn 0.6s ease-out;
+      }
+
+      .card__title {
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        font-size: 20px;
+        letter-spacing: 0.02em;
+      }
+
+      .card__subtitle {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .card__meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+      }
+
+      .card__nearby {
+        display: grid;
+        gap: 8px;
+        margin-top: 6px;
+      }
+
+      .card__nearby-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .card__nav {
+        display: inline-flex;
+        gap: 6px;
+      }
+
+      .nav-button {
+        border: none;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(15, 29, 27, 0.08);
+        color: var(--ink);
+        cursor: pointer;
+      }
+
+      .nav-button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(35, 143, 128, 0.15);
+        color: var(--accent-2);
+        font-weight: 600;
+      }
+
+      .status {
+        color: var(--muted);
+      }
+
+      .leaflet-popup-content-wrapper {
+        border-radius: 16px;
+        border: 1px solid rgba(15, 29, 27, 0.08);
+      }
+
+      .leaflet-popup-content {
+        margin: 12px 14px;
+        width: 240px;
+      }
+
+      .circle-popup .leaflet-popup-tip {
+        background: white;
+      }
+
+      .popup {
+        display: grid;
+        gap: 8px;
+      }
+
+      .popup__meta {
+        display: grid;
+        gap: 2px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .popup__name {
+        font-weight: 600;
+        color: var(--ink);
+        font-size: 13px;
+      }
+
+      .popup__media {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border-radius: 16px;
+        object-fit: cover;
+        border: 2px solid rgba(15, 29, 27, 0.1);
+        background: #0f1d1b;
+      }
+
+      .popup__desc {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .popup__actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+
+      .popup__edit {
+        border: none;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(35, 143, 128, 0.15);
+        color: var(--accent-2);
+        cursor: pointer;
+      }
+
+      .popup__edit:hover {
+        background: rgba(35, 143, 128, 0.25);
+      }
+
+      .popup__edit:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      .popup__delete {
+        border: none;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(232, 111, 71, 0.18);
+        color: #b74b2d;
+        cursor: pointer;
+      }
+
+      .popup__delete:hover {
+        background: rgba(232, 111, 71, 0.3);
+      }
+
+      .popup__delete:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      @keyframes liftIn {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes markerPop {
+        from {
+          transform: scale(0.2);
+          opacity: 0;
+        }
+        to {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      .leaflet-marker-icon {
+        animation: markerPop 0.35s ease-out;
+      }
+
+      @media (max-width: 640px) {
+        .card {
+          left: 16px;
+          right: 16px;
+        }
+
+        .leaflet-popup-content {
+          width: 200px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .card,
+        .leaflet-marker-icon {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div class="overlay">
+      <div class="card">
+        <div class="card__title">Memorio Map</div>
+        <div class="card__subtitle">Pinpointed video notes on the map.</div>
+        <div class="card__meta">
+          <span class="pill" id="marker-count">0 circles</span>
+          <span class="status" id="status">Loading...</span>
+        </div>
+        <div class="card__nearby">
+          <div class="card__nearby-row">
+            <span id="nearby-label">Ближайшие: 0 · R=5 м</span>
+            <div class="card__nav">
+              <button class="nav-button" id="nearby-prev" type="button">
+                Назад
+              </button>
+              <button class="nav-button" id="nearby-next" type="button">
+                Вперед
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      window.MEMORIO = {
+        userId: {{ user_id | tojson }},
+        token: {{ token | tojson }},
+      };
+    </script>
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script>
+      const map = L.map("map", { zoomControl: false });
+      L.control.zoom({ position: "bottomright" }).addTo(map);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      const statusEl = document.getElementById("status");
+      const countEl = document.getElementById("marker-count");
+      const nearbyLabel = document.getElementById("nearby-label");
+      const nearbyPrev = document.getElementById("nearby-prev");
+      const nearbyNext = document.getElementById("nearby-next");
+
+      const markerStore = [];
+      let markerCount = 0;
+      let nearbyList = [];
+      let nearbyIndex = 0;
+      let anchorEntry = null;
+      let currentEntry = null;
+      let navigationEntry = null;
+
+      const BASE_RADIUS_METERS = 5;
+      const BASE_ZOOM = 18;
+      const MAX_RADIUS_METERS = 50000;
+
+      const auth = window.MEMORIO || {};
+      const userId = auth.userId;
+      const token = auth.token;
+      const authParams = new URLSearchParams({
+        user_id: userId,
+        token: token,
+      }).toString();
+
+      if (!userId || !token) {
+        statusEl.textContent = "Unauthorized";
+        map.setView([55.7558, 37.6173], 11);
+      } else {
+        fetch(`/api/markers?${authParams}`)
+          .then((response) => response.json())
+          .then((items) => {
+            const bounds = [];
+            items.forEach((item) => {
+              const location = item.location || {};
+              const lat = location.lat;
+              const lon = location.lon;
+              if (typeof lat !== "number" || typeof lon !== "number") {
+                return;
+              }
+              const marker = L.marker([lat, lon], { riseOnHover: true }).addTo(map);
+              const entry = { marker, item };
+              markerStore.push(entry);
+              markerCount += 1;
+              marker.on("popupopen", () => {
+                if (navigationEntry === entry) {
+                  currentEntry = entry;
+                  navigationEntry = null;
+                  refreshNearby();
+                  return;
+                }
+                setAnchorEntry(entry);
+              });
+              marker.on("popupclose", () => {
+                if (currentEntry === entry) {
+                  currentEntry = null;
+                }
+                refreshNearby();
+              });
+              const popup = buildPopup(item, () => {
+                map.removeLayer(marker);
+                marker.closePopup();
+                markerCount = Math.max(0, markerCount - 1);
+                const index = markerStore.indexOf(entry);
+                if (index >= 0) {
+                  markerStore.splice(index, 1);
+                }
+                if (currentEntry === entry) {
+                  currentEntry = null;
+                }
+                if (anchorEntry === entry) {
+                  anchorEntry = null;
+                  nearbyIndex = 0;
+                }
+                if (navigationEntry === entry) {
+                  navigationEntry = null;
+                }
+                updateCounts();
+                refreshNearby();
+              });
+              marker.bindPopup(popup, {
+                maxWidth: 260,
+                className: "circle-popup",
+              });
+              bounds.push([lat, lon]);
+            });
+
+            updateCounts();
+            refreshNearby();
+
+            if (bounds.length) {
+              map.fitBounds(bounds, { padding: [40, 40] });
+            } else {
+              map.setView([55.7558, 37.6173], 11);
+            }
+          })
+          .catch(() => {
+            statusEl.textContent = "Failed to load";
+            map.setView([55.7558, 37.6173], 11);
+          });
+      }
+
+      map.on("zoomend moveend", () => {
+        refreshNearby();
+      });
+
+      nearbyPrev.addEventListener("click", () => {
+        navigateNearby(-1);
+      });
+
+      nearbyNext.addEventListener("click", () => {
+        navigateNearby(1);
+      });
+
+      function setAnchorEntry(entry) {
+        anchorEntry = entry;
+        currentEntry = entry;
+        nearbyIndex = 0;
+        refreshNearby();
+      }
+
+      function updateCounts() {
+        countEl.textContent = `${markerCount} circles`;
+        statusEl.textContent = markerCount ? "Ready" : "No circles yet";
+      }
+
+      function getRadiusMeters() {
+        const zoom = map.getZoom();
+        const scale = Math.pow(2, BASE_ZOOM - zoom);
+        const radius = BASE_RADIUS_METERS * scale;
+        return Math.max(BASE_RADIUS_METERS, Math.min(radius, MAX_RADIUS_METERS));
+      }
+
+      function refreshNearby() {
+        if (!userId || !token) {
+          return;
+        }
+        const radius = getRadiusMeters();
+        if (!anchorEntry) {
+          nearbyList = [];
+          nearbyIndex = 0;
+          nearbyLabel.textContent = `Выберите кружок · R=${Math.round(
+            radius
+          )} м`;
+          nearbyPrev.disabled = true;
+          nearbyNext.disabled = true;
+          return;
+        }
+        const origin = anchorEntry.marker.getLatLng();
+        nearbyList = markerStore
+          .map((entry) => {
+            const distance =
+              entry === anchorEntry
+                ? 0
+                : map.distance(origin, entry.marker.getLatLng());
+            return { entry, distance };
+          })
+          .filter((item) => item.distance <= radius)
+          .sort((a, b) => a.distance - b.distance);
+
+        if (currentEntry) {
+          const currentIndex = nearbyList.findIndex(
+            (item) => item.entry === currentEntry
+          );
+          nearbyIndex = currentIndex >= 0 ? currentIndex : 0;
+          if (currentIndex < 0) {
+            currentEntry = anchorEntry;
+          }
+        } else {
+          nearbyIndex = 0;
+          currentEntry = anchorEntry;
+        }
+
+        updateNearbyLabel(radius);
+        const enabled = nearbyList.length > 1;
+        nearbyPrev.disabled = !enabled;
+        nearbyNext.disabled = !enabled;
+      }
+
+      function updateNearbyLabel(radius) {
+        if (!anchorEntry) {
+          nearbyLabel.textContent = `Выберите кружок · R=${Math.round(
+            radius
+          )} м`;
+          return;
+        }
+        if (!nearbyList.length) {
+          nearbyLabel.textContent = `Ближайшие: 0 · R=${Math.round(radius)} м`;
+          return;
+        }
+        const current = nearbyList[nearbyIndex];
+        nearbyLabel.textContent = `Ближайшие: ${nearbyIndex + 1}/${
+          nearbyList.length
+        } · ${Math.round(current.distance)} м · R=${Math.round(radius)} м`;
+      }
+
+      function navigateNearby(delta) {
+        if (!anchorEntry || !nearbyList.length) {
+          return;
+        }
+        nearbyIndex = (nearbyIndex + delta + nearbyList.length) % nearbyList.length;
+        const current = nearbyList[nearbyIndex];
+        const marker = current.entry.marker;
+        if (currentEntry === current.entry) {
+          return;
+        }
+        navigationEntry = current.entry;
+        marker.openPopup();
+        map.panTo(marker.getLatLng());
+      }
+
+      function buildPopup(item, onDelete) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "popup";
+
+        const meta = document.createElement("div");
+        meta.className = "popup__meta";
+
+        const name = document.createElement("div");
+        name.className = "popup__name";
+        name.textContent = item.username || `User ${item.user_id}`;
+
+        const time = document.createElement("div");
+        const recordedAt = item.data ? new Date(item.data) : null;
+        time.textContent = recordedAt
+          ? recordedAt.toLocaleString()
+          : "Unknown time";
+
+        const media = document.createElement(
+          item.type === "photo" ? "img" : "video"
+        );
+        media.className = "popup__media";
+        if (item.type !== "photo") {
+          media.controls = true;
+          media.playsInline = true;
+          media.preload = "none";
+        } else {
+          media.loading = "lazy";
+          media.alt = item.description || "Photo";
+        }
+        media.src = item.media_url || `/api/media/${item.id}?${authParams}`;
+
+        const desc = document.createElement("div");
+        desc.className = "popup__desc";
+        desc.textContent = item.description || "No description yet";
+
+        const actions = document.createElement("div");
+        actions.className = "popup__actions";
+
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.className = "popup__edit";
+        editButton.textContent = "Редактировать";
+        editButton.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const currentText = item.description || "";
+          const nextText = prompt("Описание кружка", currentText);
+          if (nextText === null) {
+            return;
+          }
+          editButton.disabled = true;
+          try {
+            const response = await fetch(
+              `/api/markers/${item.id}/description?${authParams}`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ description: nextText }),
+              }
+            );
+            if (!response.ok) {
+              throw new Error("update failed");
+            }
+            const payload = await response.json();
+            item.description = payload.description || "";
+            desc.textContent = item.description || "No description yet";
+            if (item.type === "photo") {
+              media.alt = item.description || "Photo";
+            }
+          } catch (error) {
+            alert("Не удалось сохранить описание.");
+          } finally {
+            editButton.disabled = false;
+          }
+        });
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "popup__delete";
+        deleteButton.textContent = "Удалить";
+        deleteButton.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!confirm("Удалить кружок?")) {
+            return;
+          }
+          deleteButton.disabled = true;
+          try {
+            const response = await fetch(`/api/markers/${item.id}?${authParams}`, {
+              method: "DELETE",
+            });
+            if (!response.ok) {
+              throw new Error("delete failed");
+            }
+            onDelete();
+          } catch (error) {
+            deleteButton.disabled = false;
+            alert("Не удалось удалить кружок.");
+          }
+        });
+
+        actions.append(editButton, deleteButton);
+        meta.append(name, time);
+        wrapper.append(meta, media, desc, actions);
+        return wrapper;
+      }
+    </script>
+  </body>
+</html>
